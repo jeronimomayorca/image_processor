@@ -6,6 +6,7 @@ from urllib.parse import urlparse
 from pathlib import Path
 from PIL import Image
 import io
+from rembg import remove
 
 # Create an MCP server
 mcp = FastMCP(
@@ -15,19 +16,19 @@ mcp = FastMCP(
 
 
 @mcp.tool()
-async def download_image(path=str, url=str | list[str], file_name=None):
+async def download_img(path=str, url=str | list[str], file_name=None):
     """
-    Descarga una imagen desde una URL.
+    Downloads an image from a URL.
 
     Args:
-        url (str): La URL de la imagen a descargar.
-        file_name (str, optional): El nombre con el que se guardará la imagen.
-        path (str): El directorio donde se guardará la imagen.
-        Si no se especifica, se usará el nombre
-        del archivo de la URL. Por defecto es None.
+        url (str): The URL of the image to download.
+        file_name (str, optional): The name to save the image with.
+        path (str): The directory where the image will be saved.
+        If not specified, the filename from the URL will be used.
+        Default is None.
 
     Returns:
-        bool: True si la descarga fue exitosa, False en caso contrario.
+        bool: True if the download was successful, False otherwise.
     """
 
     try:
@@ -118,20 +119,277 @@ async def download_image(path=str, url=str | list[str], file_name=None):
         print(f"Unexpected error: {e}")
         return False
 
+@mcp.tool()
+async def crop_img(input_path: str, output_path: str, left: int, top: int, right: int, bottom: int):
+    """
+    Crops an image using the specified coordinates.
+    
+    Args:
+        input_path (str): Path to the input image.
+        output_path (str): Path where the cropped image will be saved.
+        left (int): X coordinate of the left edge of the crop.
+        top (int): Y coordinate of the top edge of the crop.
+        right (int): X coordinate of the right edge of the crop.
+        bottom (int): Y coordinate of the bottom edge of the crop.
+    
+    Returns:
+        dict: Operation result with crop information.
+    """
+    try:
+        # Check if input file exists
+        if not os.path.exists(input_path):
+            return {"success": False, "error": f"File {input_path} does not exist"}
+        
+        # Create output directory if it doesn't exist
+        output_dir = os.path.dirname(output_path)
+        if output_dir:
+            Path(output_dir).mkdir(parents=True, exist_ok=True)
+        
+        # Open the image
+        with Image.open(input_path) as image:
+            # Get original dimensions
+            original_width, original_height = image.size
+            
+            # Validate coordinates
+            if left < 0 or top < 0 or right > original_width or bottom > original_height:
+                return {
+                    "success": False,
+                    "error": f"Invalid coordinates. Image: {original_width}x{original_height}, Crop: ({left},{top},{right},{bottom})"
+                }
+            
+            if left >= right or top >= bottom:
+                return {"success": False, "error": "Invalid crop coordinates"}
+            
+            # Crop the image
+            cropped_image = image.crop((left, top, right, bottom))
+            
+            # Save the cropped image
+            cropped_image.save(output_path)
+            
+            return {
+                "success": True,
+                "message": f"Image cropped successfully",
+                "original_size": f"{original_width}x{original_height}",
+                "cropped_size": f"{right-left}x{bottom-top}",
+                "output_path": output_path
+            }
+            
+    except Exception as e:
+        return {"success": False, "error": f"Error cropping image: {str(e)}"}
 
 @mcp.tool()
-async def say_hi(name=str):
+async def resize_img(input_path: str, output_path: str, width: int, height: int, maintain_aspect_ratio: bool = False):
     """
-    Greets a person to indicate I'm working well.
-
+    Resizes an image to the specified dimensions.
+    
     Args:
-        name (str): El nombre de la persona a saludar.
-
+        input_path (str): Path to the input image.
+        output_path (str): Path where the resized image will be saved.
+        width (int): New width of the image.
+        height (int): New height of the image.
+        maintain_aspect_ratio (bool): If True, maintains the original aspect ratio (optional).
+    
     Returns:
-        str: Un saludo personalizado.
+        dict: Operation result with resizing information.
     """
-    return f"Hola, {name}, estoy funcionando de maravilla!"
+    try:
+        # Check if input file exists
+        if not os.path.exists(input_path):
+            return {"success": False, "error": f"File {input_path} does not exist"}
+        
+        # Create output directory if it doesn't exist
+        output_dir = os.path.dirname(output_path)
+        if output_dir:
+            Path(output_dir).mkdir(parents=True, exist_ok=True)
+        
+        # Open the image
+        with Image.open(input_path) as image:
+            original_width, original_height = image.size
+            
+            # Validate dimensions
+            if width <= 0 or height <= 0:
+                return {"success": False, "error": "Dimensions must be greater than 0"}
+            
+            if maintain_aspect_ratio:
+                # Calculate ratio to maintain aspect ratio
+                ratio = min(width / original_width, height / original_height)
+                new_width = int(original_width * ratio)
+                new_height = int(original_height * ratio)
+            else:
+                new_width = width
+                new_height = height
+            
+            # Resize the image using LANCZOS for better quality
+            resized_image = image.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            
+            # Save the resized image
+            resized_image.save(output_path)
+            
+            return {
+                "success": True,
+                "message": "Image resized successfully",
+                "original_size": f"{original_width}x{original_height}",
+                "new_size": f"{new_width}x{new_height}",
+                "aspect_ratio_maintained": maintain_aspect_ratio,
+                "output_path": output_path
+            }
+            
+    except Exception as e:
+        return {"success": False, "error": f"Error resizing image: {str(e)}"}
 
+@mcp.tool()
+async def convert_img(input_path: str, output_path: str, target_format: str, quality: int = 95):
+    """
+    Converts an image to a specific format (JPEG, PNG, GIF, WEBP).
+    
+    Args:
+        input_path (str): Path to the input image.
+        output_path (str): Path where the converted image will be saved.
+        target_format (str): Target format ('JPEG', 'PNG', 'GIF', 'WEBP').
+        quality (int): Image quality for lossy formats (1-100, optional).
+    
+    Returns:
+        dict: Operation result with conversion information.
+    """
+    try:
+        # Check if input file exists
+        if not os.path.exists(input_path):
+            return {"success": False, "error": f"File {input_path} does not exist"}
+        
+        # Create output directory if it doesn't exist
+        output_dir = os.path.dirname(output_path)
+        if output_dir:
+            Path(output_dir).mkdir(parents=True, exist_ok=True)
+        
+        # Validate target format
+        supported_formats = ['JPEG', 'PNG', 'GIF', 'WEBP']
+        target_format = target_format.upper()
+        if target_format not in supported_formats:
+            return {
+                "success": False,
+                "error": f"Unsupported format: {target_format}. Supported formats: {', '.join(supported_formats)}"
+            }
+        
+        # Validate quality
+        if not (1 <= quality <= 100):
+            return {"success": False, "error": "Quality must be between 1 and 100"}
+        
+        # Open the image
+        with Image.open(input_path) as image:
+            original_format = image.format
+            original_mode = image.mode
+            
+            # Prepare the image according to target format
+            if target_format == 'JPEG':
+                # JPEG doesn't support transparency, convert to RGB if necessary
+                if image.mode in ('RGBA', 'LA', 'P'):
+                    # Create white background for transparency
+                    background = Image.new('RGB', image.size, (255, 255, 255))
+                    if image.mode == 'P':
+                        image = image.convert('RGBA')
+                    background.paste(image, mask=image.split()[-1] if image.mode in ('RGBA', 'LA') else None)
+                    image = background
+                elif image.mode != 'RGB':
+                    image = image.convert('RGB')
+                
+                # Save with specified quality
+                image.save(output_path, format=target_format, quality=quality, optimize=True)
+                
+            elif target_format == 'PNG':
+                # PNG supports transparency, keep original mode or convert to RGBA
+                if image.mode not in ('RGBA', 'RGB', 'L', 'LA'):
+                    image = image.convert('RGBA')
+                image.save(output_path, format=target_format, optimize=True)
+                
+            elif target_format == 'GIF':
+                # GIF requires P (palette) or L (grayscale) mode
+                if image.mode not in ('P', 'L'):
+                    # Convert to P mode with optimized palette
+                    image = image.convert('P', palette=Image.ADAPTIVE)
+                image.save(output_path, format=target_format, optimize=True)
+                
+            elif target_format == 'WEBP':
+                # WEBP supports both RGB and RGBA
+                if image.mode not in ('RGB', 'RGBA'):
+                    image = image.convert('RGBA' if 'transparency' in image.info else 'RGB')
+                image.save(output_path, format=target_format, quality=quality, optimize=True)
+            
+            return {
+                "success": True,
+                "message": f"Image converted successfully from {original_format} to {target_format}",
+                "original_format": original_format,
+                "target_format": target_format,
+                "original_mode": original_mode,
+                "final_mode": image.mode,
+                "output_path": output_path
+            }
+            
+    except Exception as e:
+        return {"success": False, "error": f"Error converting image: {str(e)}"}
+
+@mcp.tool()
+async def remove_bg(input_path: str, output_path: str, model_name: str = "u2net"):
+    """
+    Removes the background from an image using AI models.
+    
+    Args:
+        input_path (str): Path to the input image.
+        output_path (str): Path where the image without background will be saved.
+        model_name (str): AI model to use for background removal (optional).
+        Options: 'u2net', 'u2netp', 'u2net_human_seg', 'silueta', 'isnet-general-use'
+    
+    Returns:
+        dict: Operation result with background removal information.
+    """
+    try:
+        # Check if input file exists
+        if not os.path.exists(input_path):
+            return {"success": False, "error": f"File {input_path} does not exist"}
+        
+        # Create output directory if it doesn't exist
+        output_dir = os.path.dirname(output_path)
+        if output_dir:
+            Path(output_dir).mkdir(parents=True, exist_ok=True)
+        
+        # Validate model name
+        valid_models = ['u2net', 'u2netp', 'u2net_human_seg', 'silueta', 'isnet-general-use']
+        if model_name not in valid_models:
+            return {
+                "success": False,
+                "error": f"Invalid model: {model_name}. Valid models: {', '.join(valid_models)}"
+            }
+        
+        # Open and process the image
+        with Image.open(input_path) as input_image:
+            original_format = input_image.format
+            original_size = input_image.size
+            
+            # Convert image to bytes for rembg processing
+            img_byte_arr = io.BytesIO()
+            input_image.save(img_byte_arr, format='PNG')
+            img_byte_arr = img_byte_arr.getvalue()
+            
+            # Remove background using rembg
+            output_bytes = remove(img_byte_arr, model_name=model_name)
+            
+            # Convert back to PIL Image
+            output_image = Image.open(io.BytesIO(output_bytes))
+            
+            # Save the result
+            output_image.save(output_path, format='PNG')
+            
+            return {
+                "success": True,
+                "message": "Background removed successfully",
+                "original_format": original_format,
+                "original_size": f"{original_size[0]}x{original_size[1]}",
+                "model_used": model_name,
+                "output_format": "PNG",
+                "output_path": output_path
+            }
+            
+    except Exception as e:
+        return {"success": False, "error": f"Error removing background: {str(e)}"}
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")
