@@ -331,9 +331,10 @@ async def convert_img(input_path: str, output_path: str, target_format: str, qua
 async def remove_bg(input_path: str, output_path: str, model_name: str = "u2net"):
     """
     Removes the background from an image using AI models.
+    Now supports both local files and URLs.
     
     Args:
-        input_path (str): Path to the input image.
+        input_path (str): Path to local image OR URL to image.
         output_path (str): Path where the image without background will be saved.
         model_name (str): AI model to use for background removal (optional).
         Options: 'u2net', 'u2netp', 'u2net_human_seg', 'silueta', 'isnet-general-use'
@@ -341,8 +342,39 @@ async def remove_bg(input_path: str, output_path: str, model_name: str = "u2net"
     Returns:
         dict: Operation result with background removal information.
     """
+    temp_file_path = None
+    
     try:
-        # Check if input file exists
+        # NEW SECTION: Detect if input is URL and download
+        if input_path.startswith(('http://', 'https://')):
+            # Create temporary directory
+            temp_dir = "./temp_downloads"
+            Path(temp_dir).mkdir(parents=True, exist_ok=True)
+            
+            # Generate temporary filename
+            parsed_url = urlparse(input_path)
+            url_filename = os.path.basename(parsed_url.path)
+            if not url_filename or '.' not in url_filename:
+                url_filename = "temp_image.jpg"
+            
+            # Extract base name without extension for download_img
+            base_name = os.path.splitext(url_filename)[0]
+            
+            # Download the image
+            download_success = await download_img(temp_dir, input_path, base_name)
+            
+            if not download_success:
+                return {"success": False, "error": f"Failed to download image from URL: {input_path}"}
+            
+            # Find the downloaded file (download_img may change the extension)
+            downloaded_files = [f for f in os.listdir(temp_dir) if f.startswith(base_name)]
+            if not downloaded_files:
+                return {"success": False, "error": f"Downloaded file not found in {temp_dir}"}
+            
+            temp_file_path = os.path.join(temp_dir, downloaded_files[0])
+            input_path = temp_file_path
+        
+        # Check if input file exists (now works for both local files and downloaded URLs)
         if not os.path.exists(input_path):
             return {"success": False, "error": f"File {input_path} does not exist"}
         
@@ -370,7 +402,9 @@ async def remove_bg(input_path: str, output_path: str, model_name: str = "u2net"
             img_byte_arr = img_byte_arr.getvalue()
             
             # Remove background using rembg
-            output_bytes = remove(img_byte_arr, model_name=model_name)
+            from rembg import new_session
+            session = new_session(model_name)
+            output_bytes = remove(img_byte_arr, session=session)
             
             # Convert back to PIL Image
             output_image = Image.open(io.BytesIO(output_bytes))
@@ -390,6 +424,18 @@ async def remove_bg(input_path: str, output_path: str, model_name: str = "u2net"
             
     except Exception as e:
         return {"success": False, "error": f"Error removing background: {str(e)}"}
+    
+    finally:
+        # Clean up temporary file if it was downloaded
+        if temp_file_path and os.path.exists(temp_file_path):
+            try:
+                os.remove(temp_file_path)
+                # Try to remove temporary directory if it's empty
+                temp_dir = os.path.dirname(temp_file_path)
+                if os.path.exists(temp_dir) and not os.listdir(temp_dir):
+                    os.rmdir(temp_dir)
+            except:
+                pass  # Ignore cleanup errors
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")
