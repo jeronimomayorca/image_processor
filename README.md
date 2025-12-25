@@ -39,6 +39,33 @@ Siga estos pasos para configurar el proyecto en cualquier computadora:
    uv sync
    ```
 
+## ⚙️ Configuración del Servidor MCP
+
+Para usar este servidor en cualquier herramienta compatible con el Model Context Protocol (como Claude Desktop, IDEs con soporte MCP, etc.), debe añadir la configuración correspondiente.
+
+### Ejemplo de Configuración (JSON)
+
+Dependiendo de su cliente, deberá añadir un bloque similar a este en su archivo de configuración (por ejemplo, `settings.json` o la interfaz de configuración del cliente):
+
+```json
+{
+  "mcpServers": {
+    "image-processor": {
+      "command": "uv",
+      "args": [
+        "--directory",
+        "/ruta/donde/clonaste/el/repositorio",
+        "run",
+        "main.py"
+      ]
+    }
+  }
+}
+```
+
+> [!IMPORTANT]
+> Reemplace `/ruta/donde/clonaste/el/repositorio` con la ruta absoluta real del proyecto en su sistema.
+
 ## 🛠️ Herramientas Disponibles
 
 El servidor ofrece las siguientes herramientas para procesar imágenes:
