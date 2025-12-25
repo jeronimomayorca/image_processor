@@ -8,6 +8,11 @@ from PIL import Image
 import io
 from rembg import remove
 
+# Helper function to detect if a path is a URL
+def _is_url(path: str) -> bool:
+    """Check if a given path is a URL."""
+    return isinstance(path, str) and path.startswith(('http://', 'https://'))
+
 # Create an MCP server
 mcp = FastMCP(
     "image_processor",
@@ -21,14 +26,16 @@ async def download_img(path=str, url=str | list[str], file_name=None):
     Downloads an image from a URL.
 
     Args:
-        url (str): The URL of the image to download.
-        file_name (str, optional): The name to save the image with.
+        url (str or list[str]): The URL(s) of the image(s) to download.
+        file_name (str, optional): The name to save the image with (only for single URL).
         path (str): The directory where the image will be saved.
         If not specified, the filename from the URL will be used.
         Default is None.
 
     Returns:
-        bool: True if the download was successful, False otherwise.
+        dict: Download result with file paths and status information.
+              For single URL: {"success": bool, "file_path": str, "message": str}
+              For multiple URLs: {"success": bool, "files": list[str], "message": str}
     """
 
     try:
@@ -108,37 +115,70 @@ async def download_img(path=str, url=str | list[str], file_name=None):
 
             except Exception as img_error:
                 print(f"Error validating image from {single_url}: {img_error}")
-                return False
+                return {
+                    "success": False,
+                    "error": f"Error validating image from {single_url}: {img_error}"
+                }
 
-        return True
+        # Return success with file information
+        if len(downloaded_files) == 1:
+            return {
+                "success": True,
+                "file_path": downloaded_files[0],
+                "message": f"Successfully downloaded 1 image to {downloaded_files[0]}"
+            }
+        else:
+            return {
+                "success": True,
+                "files": downloaded_files,
+                "message": f"Successfully downloaded {len(downloaded_files)} images"
+            }
 
     except requests.exceptions.RequestException as e:
         print(f"Error downloading image: {e}")
-        return False
+        return {
+            "success": False,
+            "error": f"Error downloading image: {e}"
+        }
     except Exception as e:
         print(f"Unexpected error: {e}")
-        return False
+        return {
+            "success": False,
+            "error": f"Unexpected error: {e}"
+        }
 
 @mcp.tool()
-async def crop_img(input_path: str, output_path: str, left: int, top: int, right: int, bottom: int):
+async def crop_img(input_path: str, left: int, top: int, right: int, bottom: int, output_path: str = None):
     """
     Crops an image using the specified coordinates.
     
     Args:
-        input_path (str): Path to the input image.
-        output_path (str): Path where the cropped image will be saved.
+        input_path (str): Path to the local image file (URLs not supported).
         left (int): X coordinate of the left edge of the crop.
         top (int): Y coordinate of the top edge of the crop.
         right (int): X coordinate of the right edge of the crop.
         bottom (int): Y coordinate of the bottom edge of the crop.
+        output_path (str, optional): Path where the cropped image will be saved.
+                                   If not provided, the original file will be overwritten.
     
     Returns:
         dict: Operation result with crop information.
     """
     try:
+        # Check if input is a URL
+        if _is_url(input_path):
+            return {
+                "success": False,
+                "error": "URLs are not supported. Please use download_img() first to download the image, then use the returned file path."
+            }
+        
         # Check if input file exists
         if not os.path.exists(input_path):
             return {"success": False, "error": f"File {input_path} does not exist"}
+        
+        # Use input_path as output_path if not provided
+        if output_path is None:
+            output_path = input_path
         
         # Create output directory if it doesn't exist
         output_dir = os.path.dirname(output_path)
@@ -178,24 +218,36 @@ async def crop_img(input_path: str, output_path: str, left: int, top: int, right
         return {"success": False, "error": f"Error cropping image: {str(e)}"}
 
 @mcp.tool()
-async def resize_img(input_path: str, output_path: str, width: int, height: int, maintain_aspect_ratio: bool = False):
+async def resize_img(input_path: str, width: int, height: int, maintain_aspect_ratio: bool = False, output_path: str = None):
     """
     Resizes an image to the specified dimensions.
     
     Args:
-        input_path (str): Path to the input image.
-        output_path (str): Path where the resized image will be saved.
+        input_path (str): Path to the local image file (URLs not supported).
         width (int): New width of the image.
         height (int): New height of the image.
         maintain_aspect_ratio (bool): If True, maintains the original aspect ratio (optional).
+        output_path (str, optional): Path where the resized image will be saved.
+                                   If not provided, the original file will be overwritten.
     
     Returns:
         dict: Operation result with resizing information.
     """
     try:
+        # Check if input is a URL
+        if _is_url(input_path):
+            return {
+                "success": False,
+                "error": "URLs are not supported. Please use download_img() first to download the image, then use the returned file path."
+            }
+        
         # Check if input file exists
         if not os.path.exists(input_path):
             return {"success": False, "error": f"File {input_path} does not exist"}
+        
+        # Use input_path as output_path if not provided
+        if output_path is None:
+            output_path = input_path
         
         # Create output directory if it doesn't exist
         output_dir = os.path.dirname(output_path)
@@ -238,23 +290,35 @@ async def resize_img(input_path: str, output_path: str, width: int, height: int,
         return {"success": False, "error": f"Error resizing image: {str(e)}"}
 
 @mcp.tool()
-async def convert_img(input_path: str, output_path: str, target_format: str, quality: int = 95):
+async def convert_img(input_path: str, target_format: str, quality: int = 95, output_path: str = None):
     """
     Converts an image to a specific format (JPEG, PNG, GIF, WEBP).
     
     Args:
-        input_path (str): Path to the input image.
-        output_path (str): Path where the converted image will be saved.
+        input_path (str): Path to the local image file (URLs not supported).
         target_format (str): Target format ('JPEG', 'PNG', 'GIF', 'WEBP').
         quality (int): Image quality for lossy formats (1-100, optional).
+        output_path (str, optional): Path where the converted image will be saved.
+                                   If not provided, the original file will be overwritten.
     
     Returns:
         dict: Operation result with conversion information.
     """
     try:
+        # Check if input is a URL
+        if _is_url(input_path):
+            return {
+                "success": False,
+                "error": "URLs are not supported. Please use download_img() first to download the image, then use the returned file path."
+            }
+        
         # Check if input file exists
         if not os.path.exists(input_path):
             return {"success": False, "error": f"File {input_path} does not exist"}
+        
+        # Use input_path as output_path if not provided
+        if output_path is None:
+            output_path = input_path
         
         # Create output directory if it doesn't exist
         output_dir = os.path.dirname(output_path)
@@ -328,55 +392,35 @@ async def convert_img(input_path: str, output_path: str, target_format: str, qua
         return {"success": False, "error": f"Error converting image: {str(e)}"}
 
 @mcp.tool()
-async def remove_bg(input_path: str, output_path: str, model_name: str = "u2net"):
+async def remove_bg(input_path: str, model_name: str = "u2net", output_path: str = None):
     """
     Removes the background from an image using AI models.
-    Now supports both local files and URLs.
     
     Args:
-        input_path (str): Path to local image OR URL to image.
-        output_path (str): Path where the image without background will be saved.
+        input_path (str): Path to the local image file (URLs not supported).
         model_name (str): AI model to use for background removal (optional).
         Options: 'u2net', 'u2netp', 'u2net_human_seg', 'silueta', 'isnet-general-use'
+        output_path (str, optional): Path where the image without background will be saved.
+                                   If not provided, the original file will be overwritten.
     
     Returns:
         dict: Operation result with background removal information.
     """
-    temp_file_path = None
-    
     try:
-        # NEW SECTION: Detect if input is URL and download
-        if input_path.startswith(('http://', 'https://')):
-            # Create temporary directory
-            temp_dir = "./temp_downloads"
-            Path(temp_dir).mkdir(parents=True, exist_ok=True)
-            
-            # Generate temporary filename
-            parsed_url = urlparse(input_path)
-            url_filename = os.path.basename(parsed_url.path)
-            if not url_filename or '.' not in url_filename:
-                url_filename = "temp_image.jpg"
-            
-            # Extract base name without extension for download_img
-            base_name = os.path.splitext(url_filename)[0]
-            
-            # Download the image
-            download_success = await download_img(temp_dir, input_path, base_name)
-            
-            if not download_success:
-                return {"success": False, "error": f"Failed to download image from URL: {input_path}"}
-            
-            # Find the downloaded file (download_img may change the extension)
-            downloaded_files = [f for f in os.listdir(temp_dir) if f.startswith(base_name)]
-            if not downloaded_files:
-                return {"success": False, "error": f"Downloaded file not found in {temp_dir}"}
-            
-            temp_file_path = os.path.join(temp_dir, downloaded_files[0])
-            input_path = temp_file_path
+        # Check if input is a URL
+        if _is_url(input_path):
+            return {
+                "success": False,
+                "error": "URLs are not supported. Please use download_img() first to download the image, then use the returned file path."
+            }
         
-        # Check if input file exists (now works for both local files and downloaded URLs)
+        # Check if input file exists
         if not os.path.exists(input_path):
             return {"success": False, "error": f"File {input_path} does not exist"}
+        
+        # Use input_path as output_path if not provided
+        if output_path is None:
+            output_path = input_path
         
         # Create output directory if it doesn't exist
         output_dir = os.path.dirname(output_path)
@@ -424,18 +468,6 @@ async def remove_bg(input_path: str, output_path: str, model_name: str = "u2net"
             
     except Exception as e:
         return {"success": False, "error": f"Error removing background: {str(e)}"}
-    
-    finally:
-        # Clean up temporary file if it was downloaded
-        if temp_file_path and os.path.exists(temp_file_path):
-            try:
-                os.remove(temp_file_path)
-                # Try to remove temporary directory if it's empty
-                temp_dir = os.path.dirname(temp_file_path)
-                if os.path.exists(temp_dir) and not os.listdir(temp_dir):
-                    os.rmdir(temp_dir)
-            except:
-                pass  # Ignore cleanup errors
 
 if __name__ == "__main__":
     mcp.run(transport="stdio")
