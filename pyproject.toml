@@ -1,7 +1,7 @@
 [project]
 name = "image-processor"
 version = "0.1.0"
-description = "Add your description here"
+description = "An MCP server for advanced image processing, including AI-powered background removal, resizing, and format conversion."
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [

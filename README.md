@@ -1,51 +1,56 @@
-﻿# Image Processor MCP Server
+# 🖼️ Image Processor MCP Server
 
-Un servidor MCP (Model Context Protocol) potente para el procesamiento de imágenes, diseñado para permitir que los modelos de IA realicen operaciones comunes de edición y manipulación de imágenes.
+A powerful Model Context Protocol (MCP) server for image processing, designed to empower AI models with advanced image manipulation capabilities. From basic editing to AI-powered background removal, this server provides a comprehensive toolkit for programmatic image handling.
 
-## 🛠️ Stack Tecnológico
+## ✨ Features
 
-Este proyecto está construido con las siguientes tecnologías:
+- **🚀 AI Background Removal**: Seamlessly remove backgrounds using state-of-the-art models (u2net, etc.).
+- **📥 Smart Downloader**: Download images from single or multiple URLs with automatic format detection.
+- **📐 Precision Cropping**: Crop images using exact pixel coordinates.
+- **🖼️ Flexible Resizing**: Scale images with optional aspect ratio preservation and high-quality interpolation.
+- **🔄 Format Conversion**: Convert between JPEG, PNG, GIF, and WEBP with quality control and transparency handling.
 
-- **Python 3.13+**: Lenguaje de programación principal.
-- **[FastMCP](https://github.com/modelcontextprotocol/python-sdk)**: Framework para la creación rápida de servidores MCP.
-- **[Pillow (PIL)](https://python-pillow.org/)**: Biblioteca para la manipulación y procesamiento de imágenes.
-- **[rembg](https://github.com/danielgatis/rembg)**: Herramienta basada en IA para la eliminación de fondos.
-- **[Requests](https://requests.readthedocs.io/)**: Para la descarga de imágenes desde URLs.
-- **[uv](https://github.com/astral-sh/uv)**: El administrador de paquetes y entornos de Python ultra rápido para la gestión de dependencias.
+## 🛠️ Tech Stack
 
-## 🚀 Instalación y Configuración
+- **[Python 3.13+](https://www.python.org/)**: Leveraging the latest Python features.
+- **[FastMCP](https://github.com/modelcontextprotocol/python-sdk)**: High-performance framework for MCP server development.
+- **[Pillow (PIL)](https://python-pillow.org/)**: The industry-standard library for image processing in Python.
+- **[rembg](https://github.com/danielgatis/rembg)**: AI-driven background removal tool.
+- **[uv](https://github.com/astral-sh/uv)**: Ultra-fast Python package and environment manager.
 
-Siga estos pasos para configurar el proyecto en cualquier computadora:
+## 🚀 Getting Started
 
-### Prerrequisitos
+### Prerequisites
 
-- **Python 3.13** o superior.
-- **uv** instalado. Si no tienes `uv`, puedes instalarlo con:
-  ```powershell
+- **Python 3.13** or higher.
+- **uv** installed. If you don't have it, install it via:
+  ```bash
+  # macOS/Linux
+  curl -LsSf https://astral.sh/uv/install.sh | sh
+  # Windows
   powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
   ```
 
-### Pasos de Instalación
+### Installation
 
-1. **Clonar el repositorio**:
+1. **Clone the repository**:
    ```bash
-   git clone <url-del-repositorio>
-   cd image_processor
+   git clone <repository-url>
+   cd mcp-image-processor
    ```
 
-2. **Instalar dependencias**:
-   Usa `uv` para sincronizar el entorno e instalar todas las dependencias necesarias:
+2. **Sync dependencies**:
    ```bash
    uv sync
    ```
 
-## ⚙️ Configuración del Servidor MCP
+## ⚙️ Configuration
 
-Para usar este servidor en cualquier herramienta compatible con el Model Context Protocol (como Claude Desktop, IDEs con soporte MCP, etc.), debe añadir la configuración correspondiente.
+To use this server with an MCP-compatible client (like Claude Desktop or IDEs), add the following configuration:
 
-### Ejemplo de Configuración (JSON)
+### Claude Desktop Configuration
 
-Dependiendo de su cliente, deberá añadir un bloque similar a este en su archivo de configuración (por ejemplo, `settings.json` o la interfaz de configuración del cliente):
+Add this to your `claude_desktop_config.json`:
 
 ```json
 {
@@ -54,7 +59,7 @@ Dependiendo de su cliente, deberá añadir un bloque similar a este en su archiv
       "command": "uv",
       "args": [
         "--directory",
-        "/ruta/donde/clonaste/el/repositorio",
+        "/absolute/path/to/mcp-image-processor",
         "run",
         "main.py"
       ]
@@ -64,24 +69,28 @@ Dependiendo de su cliente, deberá añadir un bloque similar a este en su archiv
 ```
 
 > [!IMPORTANT]
-> Reemplace `/ruta/donde/clonaste/el/repositorio` con la ruta absoluta real del proyecto en su sistema.
+> Ensure you provide the **absolute path** to the project directory.
 
-## 🛠️ Herramientas Disponibles
+## 🧰 Available Tools
 
-El servidor ofrece las siguientes herramientas para procesar imágenes:
+| Tool | Description |
+|------|-------------|
+| `download_img` | Downloads one or multiple images from URLs to a local path. |
+| `crop_img` | Crops a local image using (left, top, right, bottom) coordinates. |
+| `resize_img` | Resizes an image. Supports aspect ratio locking and custom dimensions. |
+| `convert_img` | Converts images between JPEG, PNG, GIF, and WEBP. |
+| `remove_bg` | Removes the background using AI models (u2net, isnet, etc.). |
 
-- `download_img`: Descarga imágenes desde una o varias URLs.
-- `crop_img`: Recorta una imagen local especificando las coordenadas (left, top, right, bottom).
-- `resize_img`: Cambia el tamaño de una imagen, con opción de mantener la relación de aspecto.
-- `convert_img`: Convierte imágenes entre formatos (JPEG, PNG, GIF, WEBP).
-- `remove_bg`: Elimina el fondo de una imagen usando modelos de IA (u2net, etc.).
+## 🖥️ Manual Execution
 
-## 🖥️ Uso
-
-Para iniciar el servidor MCP:
+For testing or development purposes, you can run the server manually:
 
 ```bash
 uv run main.py
 ```
 
-El servidor utiliza el transporte `stdio` por defecto para comunicarse con los clientes MCP.
+The server communicates via `stdio` by default, as per the MCP specification.
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
